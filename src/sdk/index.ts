@@ -1,7 +1,14 @@
 import Client from "./client";
+import AuthResource from "./resources/auth.resource";
+import UsersResource from "./resources/users.resource";
+import PhonesResource from "./resources/phones.resource";
 
-const baseUrl = "https://api.example.com";
+const client = new Client("http://localhost:8080").getClient();
 
-const client = new Client(baseUrl);
+const sdk = {
+  auth: new AuthResource(client),
+  users: new UsersResource(client),
+  phones: new PhonesResource(client),
+};
 
-export default client;
+export default sdk;

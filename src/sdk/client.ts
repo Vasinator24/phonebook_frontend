@@ -1,19 +1,24 @@
-import type { AxiosInstance } from "axios";
 import axios from "axios";
 
 class Client {
-  private client: AxiosInstance;
+  private client;
 
   constructor(baseUrl: string) {
     this.client = axios.create({
       baseURL: baseUrl,
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
+    });
+
+    this.client.interceptors.request.use((config) => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
     });
   }
 
-  getClient(): AxiosInstance {
+  getClient() {
     return this.client;
   }
 }
