@@ -1,39 +1,31 @@
-import { useState } from "react";
-import type { User } from "../../types";
+import { useEffect, useState } from "react";
 import sdk from "../../sdk";
 
-const Users = () => {
-  const [user, setUser] = useState<User[] | null>(null);
+export default function UsersPage() {
+  const [users, setUsers] = useState<any[]>([]);
 
-  // Invoke the API to fetch users and set the state
-  const resp = sdk.users
-    .getUsers()
-    .then((response) => {
-      setUser(response.data);
-    })
-    .catch((error) => {
-      console.error("Error fetching users:", error);
-    });
+  useEffect(() => {
+    load();
+  }, []);
 
-  if (resp != null && Array.isArray(resp)) {
-    setUser(resp);
+  async function load() {
+    try {
+      const data = await sdk.users.getAll();
+      setUsers(data);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   return (
-    <>
-      {user ? (
-        <ul>
-          {user.map((u) => (
-            <li key={u.id}>
-              {u.username} - {u.email}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>Loading users...</p>
-      )}
-    </>
-  );
-};
+    <div>
+      <h1>Users</h1>
 
-export default Users;
+      {users.map(u => (
+        <div key={u.id}>
+          {u.username} - {u.email}
+        </div>
+      ))}
+    </div>
+  );
+}
