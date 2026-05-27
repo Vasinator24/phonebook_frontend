@@ -1,19 +1,27 @@
 import { useState } from "react";
 import { z } from "zod";
+import { useNavigate } from "react-router-dom";
+
 import sdk from "../../sdk";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
 const loginSchema = z.object({
-  email: z.string().email("Invalid email"),
-  password: z.string().min(4, "Password must be at least 4 characters"),
+  email: z.string().min(1, "Email or username is required"),
+  password: z.string().min(4, "Password too short"),
 });
 
 const registerSchema = z.object({
   names: z.string().min(2, "Name is required"),
   email: z.string().email("Invalid email"),
-  password: z.string().min(4, "Password must be at least 4 characters"),
+  password: z.string().min(4, "Password too short"),
 });
 
 export default function LoginPage() {
+  const navigate = useNavigate();
+
   const [isLogin, setIsLogin] = useState(true);
 
   const [loginForm, setLoginForm] = useState({
@@ -27,19 +35,26 @@ export default function LoginPage() {
     password: "",
   });
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [errors, setErrors] = useState<any>({});
+  const [backendError, setBackendError] = useState("");
 
+  // LOGIN
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
 
-    setError("");
-    setSuccess("");
+    setErrors({});
+    setBackendError("");
 
-    const result = loginSchema.safeParse(loginForm);
+    const validation = loginSchema.safeParse(loginForm);
 
-    if (!result.success) {
-      setError(result.error.issues[0].message);
+    if (!validation.success) {
+      const err = validation.error.format();
+
+      setErrors({
+        email: err.email?._errors[0],
+        password: err.password?._errors[0],
+      });
+
       return;
     }
 
@@ -51,33 +66,37 @@ export default function LoginPage() {
 
       localStorage.setItem("token", data.token);
 
-      window.location.href = "/phones";
+      navigate("/users");
     } catch (err: any) {
-      setError(err?.response?.data || "Login failed");
+      setBackendError(err?.response?.data || "Login failed");
     }
   }
 
+  // REGISTER
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
 
-    setError("");
-    setSuccess("");
+    setErrors({});
+    setBackendError("");
 
-    const result = registerSchema.safeParse(registerForm);
+    const validation = registerSchema.safeParse(registerForm);
 
-    if (!result.success) {
-      setError(result.error.issues[0].message);
+    if (!validation.success) {
+      const err = validation.error.format();
+
+      setErrors({
+        names: err.names?._errors[0],
+        email: err.email?._errors[0],
+        password: err.password?._errors[0],
+      });
+
       return;
     }
 
     try {
-      await sdk.users.create({
-        names: registerForm.names,
-        email: registerForm.email,
-        password: registerForm.password,
-      });
+      await sdk.users.create(registerForm);
 
-      setSuccess("Account created successfully");
+      setIsLogin(true);
 
       setRegisterForm({
         names: "",
@@ -85,75 +104,35 @@ export default function LoginPage() {
         password: "",
       });
 
-      setIsLogin(true);
     } catch (err: any) {
-      setError(err?.response?.data || "Register failed");
+      setBackendError(err?.response?.data || "Register failed");
     }
   }
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        background: "#f5f5f5",
-      }}
-    >
-      <div
-        style={{
-          width: 400,
-          background: "white",
-          padding: 30,
-          borderRadius: 12,
-          boxShadow: "0 0 10px rgba(0,0,0,0.1)",
-        }}
-      >
-        <h1 style={{ textAlign: "center", marginBottom: 20 }}>
-          PhoneBook
-        </h1>
+  <div className="min-h-screen flex items-center justify-center bg-muted">
 
-        <div
-          style={{
-            display: "flex",
-            marginBottom: 20,
-          }}
-        >
-          <button
-            onClick={() => setIsLogin(true)}
-            style={{
-              flex: 1,
-              padding: 10,
-              background: isLogin ? "#222" : "#ddd",
-              color: isLogin ? "white" : "black",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Login
-          </button>
+    <div className="w-[350px] bg-background rounded-xl shadow-lg p-6 flex flex-col gap-6">
 
-          <button
-            onClick={() => setIsLogin(false)}
-            style={{
-              flex: 1,
-              padding: 10,
-              background: !isLogin ? "#222" : "#ddd",
-              color: !isLogin ? "white" : "black",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Create Account
-          </button>
-        </div>
+      {/* HEADER */}
+      <div className="text-center space-y-1">
+        <h1 className="text-4xl font-bold">📱 PhoneBook</h1>
 
-        {isLogin ? (
-          <form onSubmit={handleLogin}>
-            <input
-              type="email"
-              placeholder="Email"
+        <p className="text-muted-foreground">
+          {isLogin ? "Login to continue" : "Create your account"}
+        </p>
+      </div>
+
+      {/* FORM */}
+      {isLogin ? (
+        <form onSubmit={handleLogin} className="grid gap-4">
+
+          {/* EMAIL */}
+          <div className="grid gap-2">
+            <Label>Email or username</Label>
+            <Input
+              type="text"
+              placeholder="ivan or ivan@mail.com"
               value={loginForm.email}
               onChange={(e) =>
                 setLoginForm({
@@ -161,16 +140,20 @@ export default function LoginPage() {
                   email: e.target.value,
                 })
               }
-              style={{
-                width: "100%",
-                padding: 12,
-                marginBottom: 10,
-              }}
             />
+            {errors.email && (
+              <span className="text-red-500 text-sm">
+                {errors.email}
+              </span>
+            )}
+          </div>
 
-            <input
+          {/* PASSWORD */}
+          <div className="grid gap-2">
+            <Label>Password</Label>
+            <Input
               type="password"
-              placeholder="Password"
+              placeholder="Password..."
               value={loginForm.password}
               onChange={(e) =>
                 setLoginForm({
@@ -178,31 +161,33 @@ export default function LoginPage() {
                   password: e.target.value,
                 })
               }
-              style={{
-                width: "100%",
-                padding: 12,
-                marginBottom: 10,
-              }}
             />
+            {errors.password && (
+              <span className="text-red-500 text-sm">
+                {errors.password}
+              </span>
+            )}
+          </div>
 
-            <button
-              type="submit"
-              style={{
-                width: "100%",
-                padding: 12,
-                background: "#222",
-                color: "white",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              Login
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleRegister}>
-            <input
-              placeholder="Full Name"
+          {/* ERROR */}
+          {backendError && (
+            <span className="text-red-500 text-sm">
+              {backendError}
+            </span>
+          )}
+
+          <Button type="submit" className="w-full">
+            Login
+          </Button>
+        </form>
+      ) : (
+        <form onSubmit={handleRegister} className="grid gap-4">
+
+          {/* NAME */}
+          <div className="grid gap-2">
+            <Label>Full Name</Label>
+            <Input
+              placeholder="John Doe"
               value={registerForm.names}
               onChange={(e) =>
                 setRegisterForm({
@@ -210,16 +195,20 @@ export default function LoginPage() {
                   names: e.target.value,
                 })
               }
-              style={{
-                width: "100%",
-                padding: 12,
-                marginBottom: 10,
-              }}
             />
+            {errors.names && (
+              <span className="text-red-500 text-sm">
+                {errors.names}
+              </span>
+            )}
+          </div>
 
-            <input
+          {/* EMAIL */}
+          <div className="grid gap-2">
+            <Label>Email</Label>
+            <Input
               type="email"
-              placeholder="Email"
+              placeholder="Email..."
               value={registerForm.email}
               onChange={(e) =>
                 setRegisterForm({
@@ -227,16 +216,20 @@ export default function LoginPage() {
                   email: e.target.value,
                 })
               }
-              style={{
-                width: "100%",
-                padding: 12,
-                marginBottom: 10,
-              }}
             />
+            {errors.email && (
+              <span className="text-red-500 text-sm">
+                {errors.email}
+              </span>
+            )}
+          </div>
 
-            <input
+          {/* PASSWORD */}
+          <div className="grid gap-2">
+            <Label>Password</Label>
+            <Input
               type="password"
-              placeholder="Password"
+              placeholder="Password..."
               value={registerForm.password}
               onChange={(e) =>
                 setRegisterForm({
@@ -244,53 +237,46 @@ export default function LoginPage() {
                   password: e.target.value,
                 })
               }
-              style={{
-                width: "100%",
-                padding: 12,
-                marginBottom: 10,
-              }}
             />
+            {errors.password && (
+              <span className="text-red-500 text-sm">
+                {errors.password}
+              </span>
+            )}
+          </div>
 
-            <button
-              type="submit"
-              style={{
-                width: "100%",
-                padding: 12,
-                background: "#222",
-                color: "white",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              Create Account
-            </button>
-          </form>
-        )}
+          {/* ERROR */}
+          {backendError && (
+            <span className="text-red-500 text-sm">
+              {backendError}
+            </span>
+          )}
 
-        {error && (
-          <p
-            style={{
-              color: "red",
-              marginTop: 15,
-              textAlign: "center",
-            }}
-          >
-            {error}
-          </p>
-        )}
+          <Button type="submit" className="w-full">
+            Create Account
+          </Button>
+        </form>
+      )}
 
-        {success && (
-          <p
-            style={{
-              color: "green",
-              marginTop: 15,
-              textAlign: "center",
-            }}
-          >
-            {success}
-          </p>
-        )}
+      {/* FOOTER TOGGLE */}
+      <div className="grid grid-cols-2 gap-2 pt-4 border-t mt-2">
+        <Button
+          variant={isLogin ? "default" : "outline"}
+          onClick={() => setIsLogin(true)}
+          type="button"
+        >
+          Login
+        </Button>
+
+        <Button
+          variant={!isLogin ? "default" : "outline"}
+          onClick={() => setIsLogin(false)}
+          type="button"
+        >
+          Register
+        </Button>
       </div>
+
     </div>
-  );
-}
+  </div>
+)};

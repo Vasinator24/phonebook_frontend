@@ -1,24 +1,28 @@
 import type { AxiosInstance } from "axios";
+import type { Phone } from "../../types/phone";
 
 export default class PhonesResource {
   constructor(private client: AxiosInstance) {}
 
-  async getByUser(user_id: number) {
+  async getByUser(user_id: number): Promise<Phone[]> {
     const res = await this.client.get(`/phones?user_id=${user_id}`);
     return res.data;
   }
 
-  async create(data: { number: string }) {
+  async create(data: Omit<Phone, "id">): Promise<Phone> {
     const res = await this.client.post("/phones/create", data);
     return res.data;
   }
 
-  async delete(id: number) {
+  async delete(id: number): Promise<void> {
     const res = await this.client.delete(`/phones/delete?id=${id}`);
     return res.data;
   }
 
-  async edit(id: number, data: { number: string }) {
+  async edit(
+    id: number,
+    data: Pick<Phone, "number">
+  ): Promise<Phone> {
     const res = await this.client.put(`/phones/update?id=${id}`, data);
     return res.data;
   }
