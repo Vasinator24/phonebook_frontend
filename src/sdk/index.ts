@@ -1,12 +1,14 @@
 import Client from "./client";
-import AuthResource from "./resources/auth.resource";
 import UsersResource from "./resources/users.resource";
 import PhonesResource from "./resources/phones.resource";
 
-const client = new Client("http://localhost:8080").getClient();
+const apiHost = import.meta.env.VITE_API_HOST || "http://localhost";
+const apiPort = import.meta.env.VITE_API_PORT || "8080";
+const apiUrl = `${apiHost}:${apiPort}`;
+
+const client = new Client(apiUrl).getClient();
 
 const sdk = {
-  auth: new AuthResource(client),
   users: new UsersResource(client),
   phones: new PhonesResource(client),
 };

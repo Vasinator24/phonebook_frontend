@@ -9,23 +9,11 @@ export default class UsersResource {
   }
 
   async create(data: {
-    username?: string;
-    names: string;
-    email: string;
-    password: string;
-  }) {
-    const res = await this.client.post("/users/create", data);
-    return res.data;
-  }
-
-  async createByAdmin(data: {
     username: string;
     names: string;
     email: string;
-    password: string;
-    role: string;
   }) {
-    const res = await this.client.post("/users/admin-create", data);
+    const res = await this.client.post("/users/create", data);
     return res.data;
   }
   
