@@ -1,13 +1,6 @@
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 
 export default function RootLayout() {
-  const navigate = useNavigate();
-
-  function logout() {
-    localStorage.removeItem("token");
-    navigate("/login");
-  }
-
   return (
     <div style={{ padding: 20 }}>
       <nav
@@ -19,8 +12,7 @@ export default function RootLayout() {
         }}
       >
         <Link to="/users">Users</Link>
-
-        <button onClick={logout}>Logout</button>
+        <Link to="/phones">Phones</Link>
       </nav>
 
       <Outlet />

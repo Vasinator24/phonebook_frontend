@@ -1,5 +1,5 @@
 import type { AxiosInstance } from "axios";
-import type { Phone } from "../../types/phone";
+import type { Phone } from "../../types";
 
 export default class PhonesResource {
   constructor(private client: AxiosInstance) {}
@@ -21,7 +21,7 @@ export default class PhonesResource {
 
   async edit(
     id: number,
-    data: Pick<Phone, "number">
+    data: Pick<Phone, "number" | "user_id">
   ): Promise<Phone> {
     const res = await this.client.put(`/phones/update?id=${id}`, data);
     return res.data;
