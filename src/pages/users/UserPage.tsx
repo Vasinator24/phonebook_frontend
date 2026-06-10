@@ -1,32 +1,17 @@
-import { useEffect, useState } from "react";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import sdk from "../../sdk";
-import type { Phone, User } from "../../types";
-
-const createUserSchema = z.object({
-  username: z.string().trim().min(3, "Username must be at least 3 characters."),
-  names: z.string().trim().min(3, "Name must be at least 3 characters."),
-  email: z.string().trim().email("Email is invalid."),
-});
-
-const updateUserSchema = z.object({
-  names: z.string().trim().min(3, "Name must be at least 3 characters."),
-  email: z.string().trim().email("Email is invalid."),
-});
-
-const phoneSchema = z.object({
-  number: z
-    .string()
-    .trim()
-    .regex(/^\d{8,}$/, "Phone number must contain at least 8 digits."),
-});
-
-function getValidationMessage(error: z.ZodError) {
-  return error.issues[0]?.message || "Invalid data.";
-}
+import {
+  createUserSchema,
+  getValidationMessage,
+  phoneSchema,
+  updateUserSchema,
+  type Phone,
+  type User,
+} from "../../types";
+import { CreateUserModal } from "./components/CreateUserModal";
+import { EditUserModal } from "./components/EditUserModal";
+import { UserPhonesTable } from "./components/UserPhonesTable";
+import { UsersTable } from "./components/UsersTable";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -38,15 +23,53 @@ export default function UsersPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const [editUser, setEditUser] = useState<User | null>(null);
-  const [editNames, setEditNames] = useState("");
-  const [editEmail, setEditEmail] = useState("");
   const [editPhones, setEditPhones] = useState<Phone[]>([]);
+  const [originalEditPhones, setOriginalEditPhones] = useState<Phone[]>([]);
+  const [isEditDirty, setIsEditDirty] = useState(false);
+  const editFormRef = useRef<HTMLFormElement | null>(null);
 
-  const [createUsername, setCreateUsername] = useState("");
-  const [createNames, setCreateNames] = useState("");
-  const [createEmail, setCreateEmail] = useState("");
+  const isDirty = useCallback(
+    (form: HTMLFormElement) => {
+      if (!editUser) return false;
 
-  // LOAD USERS
+      const formData = new FormData(form);
+      const names = String(formData.get("names") || "").trim();
+      const email = String(formData.get("email") || "").trim();
+      const userChanged = names !== editUser.names || email !== editUser.email;
+
+      const formPhones = editPhones.map((phone, index) => ({
+        ...phone,
+        number: String(formData.get(`phone-${index}`) || "").trim(),
+      }));
+
+      const hasDeletedPhone = originalEditPhones.some(
+        (oldPhone) =>
+          oldPhone.id && !formPhones.some((phone) => phone.id === oldPhone.id)
+      );
+
+      const hasChangedPhone = formPhones.some((phone) => {
+        if (!phone.id) {
+          return String(phone.number).length > 0;
+        }
+
+        const originalPhone = originalEditPhones.find(
+          (oldPhone) => oldPhone.id === phone.id
+        );
+
+        return originalPhone?.number !== phone.number;
+      });
+
+      return userChanged || hasDeletedPhone || hasChangedPhone;
+    },
+    [editPhones, editUser, originalEditPhones]
+  );
+
+  useEffect(() => {
+    if (isModalOpen && editFormRef.current) {
+      setIsEditDirty(isDirty(editFormRef.current));
+    }
+  }, [editPhones, isDirty, isModalOpen]);
+
   useEffect(() => {
     (async () => {
       const data = await sdk.users.getAll();
@@ -54,30 +77,21 @@ export default function UsersPage() {
     })();
   }, []);
 
-  // SELECT USER
   async function handleSelectUser(userId: number) {
     setSelectedUserId(userId);
     const data = await sdk.phones.getByUser(userId);
     setPhones(data);
   }
 
-  // OPEN MODAL
   async function openEditModal(user: User) {
     setEditUser(user);
-    setEditNames(user.names);
-    setEditEmail(user.email);
 
     const data = await sdk.phones.getByUser(user.id);
     setEditPhones(data);
+    setOriginalEditPhones(data);
+    setIsEditDirty(false);
 
     setIsModalOpen(true);
-  }
-
-  // PHONE UPDATE
-  function updatePhoneValue(index: number, value: string) {
-    const copy = [...editPhones];
-    copy[index].number = value;
-    setEditPhones(copy);
   }
 
   function addPhoneField() {
@@ -88,18 +102,22 @@ export default function UsersPage() {
     setEditPhones((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function handleEditFormChange(e: FormEvent<HTMLFormElement>) {
+    setIsEditDirty(isDirty(e.currentTarget));
+  }
+
   function openCreateModal() {
-    setCreateUsername("");
-    setCreateNames("");
-    setCreateEmail("");
     setIsCreateModalOpen(true);
   }
 
-  async function handleCreateUser() {
+  async function handleCreateUser(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+
     const validation = createUserSchema.safeParse({
-      username: createUsername,
-      names: createNames,
-      email: createEmail,
+      username: formData.get("username"),
+      names: formData.get("names"),
+      email: formData.get("email"),
     });
 
     if (!validation.success) {
@@ -144,13 +162,14 @@ export default function UsersPage() {
     }
   }
 
-  // SAVE
-  async function handleSave() {
+  async function handleSave(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     if (!editUser) return;
+    const formData = new FormData(e.currentTarget);
 
     const validation = updateUserSchema.safeParse({
-      names: editNames,
-      email: editEmail,
+      names: formData.get("names"),
+      email: formData.get("email"),
     });
 
     if (!validation.success) {
@@ -158,11 +177,18 @@ export default function UsersPage() {
       return;
     }
 
-    const activePhones = editPhones.filter((phone) => phone.number.trim());
+    const formPhones = editPhones.map((phone, index) => ({
+      ...phone,
+      number: String(formData.get(`phone-${index}`) || ""),
+    }));
+    const phonesToValidate = formPhones.filter(
+      (phone) => phone.id || String(phone.number).trim()
+    );
+    const validatedPhones: Phone[] = [];
     const usedNumbers = new Set<string>();
     const allExistingPhones = users.flatMap((user) => user.phones || []);
 
-    for (const phone of activePhones) {
+    for (const phone of phonesToValidate) {
       const phoneValidation = phoneSchema.safeParse({
         number: phone.number,
       });
@@ -173,6 +199,8 @@ export default function UsersPage() {
       }
 
       const number = phoneValidation.data.number;
+      validatedPhones.push({ ...phone, number });
+
       if (usedNumbers.has(number)) {
         alert("This phone number is already added in the form.");
         return;
@@ -192,50 +220,71 @@ export default function UsersPage() {
     }
 
     try {
-      await sdk.users.update(editUser.id, validation.data);
+      const userChanged =
+        validation.data.names !== editUser.names ||
+        validation.data.email !== editUser.email;
 
-      const oldPhones = await sdk.phones.getByUser(editUser.id);
+      const deletedPhones = originalEditPhones.filter(
+        (oldPhone) =>
+          oldPhone.id && !formPhones.some((phone) => phone.id === oldPhone.id)
+      );
 
-      for (const old of oldPhones) {
-        const stillExists = editPhones.find(p => p.id === old.id);
+      const changedPhones = validatedPhones.filter((phone) => {
+        if (!phone.id) return false;
 
-        if (!stillExists && old.id) {
-          await sdk.phones.delete(old.id);
+        const originalPhone = originalEditPhones.find(
+          (oldPhone) => oldPhone.id === phone.id
+        );
+
+        return originalPhone?.number !== phone.number;
+      });
+
+      const newPhones = validatedPhones.filter((phone) => !phone.id);
+      const hasPhoneChanges =
+        deletedPhones.length > 0 ||
+        changedPhones.length > 0 ||
+        newPhones.length > 0;
+
+      if (!userChanged && !hasPhoneChanges) {
+        setIsModalOpen(false);
+        return;
+      }
+
+      if (userChanged) {
+        await sdk.users.update(editUser.id, validation.data);
+      }
+
+      for (const phone of deletedPhones) {
+        if (phone.id) {
+          await sdk.phones.delete(phone.id);
         }
       }
 
-      for (const p of editPhones) {
-        if (!p.number.trim()) continue;
-
-        if (p.id) {
-          const phoneValidation = phoneSchema.parse({
-            number: p.number,
-          });
-
-          await sdk.phones.edit(p.id, {
+      for (const phone of changedPhones) {
+        if (phone.id) {
+          await sdk.phones.edit(phone.id, {
             user_id: editUser.id,
-            number: phoneValidation.number,
-          });
-        } else {
-          const phoneValidation = phoneSchema.parse({
-            number: p.number,
-          });
-
-          await sdk.phones.create({
-            user_id: editUser.id,
-            number: phoneValidation.number,
+            number: phone.number,
           });
         }
       }
 
-      const refreshedPhones = await sdk.phones.getByUser(editUser.id);
-      setPhones(refreshedPhones);
+      for (const phone of newPhones) {
+        await sdk.phones.create({
+          user_id: editUser.id,
+          number: phone.number,
+        });
+      }
+
+      if (hasPhoneChanges && selectedUserId === editUser.id) {
+        const refreshedPhones = await sdk.phones.getByUser(editUser.id);
+        setPhones(refreshedPhones);
+      }
 
       const refreshedUsers = await sdk.users.getAll();
       setUsers(refreshedUsers);
 
       setIsModalOpen(false);
-
     } catch (err) {
       console.error("SAVE FAILED:", err);
       alert("Save failed!");
@@ -244,219 +293,40 @@ export default function UsersPage() {
 
   return (
     <div className="flex gap-6 p-6 bg-gray-100 min-h-screen">
+      <UsersTable
+        selectedUserId={selectedUserId}
+        users={users}
+        onCreateUser={openCreateModal}
+        onDeleteUser={handleDeleteUser}
+        onEditUser={openEditModal}
+        onSelectUser={handleSelectUser}
+      />
 
-      {/* USERS */}
-      <div className="flex-1 bg-white rounded-xl shadow p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Users</h2>
+      <UserPhonesTable
+        phones={phones}
+        selectedUser={selectedUser}
+        selectedUserId={selectedUserId}
+      />
 
-          <Button
-            onClick={openCreateModal}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            Create User
-          </Button>
-        </div>
-
-        <table className="w-full border rounded-lg overflow-hidden">
-          <thead className="bg-gray-200">
-            <tr>
-              <th className="p-2">Name</th>
-              <th className="p-2">Email</th>
-              <th className="p-2 text-right">Action</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {users.map((u) => (
-              <tr
-                key={u.id}
-                onClick={() => handleSelectUser(u.id)}
-                className="border-t cursor-pointer hover:bg-gray-50"
-              >
-                <td className="p-2">{u.names}</td>
-                <td className="p-2">{u.email}</td>
-                <td className="p-2">
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditModal(u);
-                      }}
-                      className="bg-blue-500 hover:bg-blue-600"
-                    >
-                      Edit
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteUser(u);
-                      }}
-                      className="bg-red-500 hover:bg-red-600"
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* PHONES */}
-      <div className="flex-1 bg-white rounded-xl shadow p-4">
-        <h2 className="text-xl font-bold mb-1">Phones</h2>
-        {selectedUser && (
-          <p className="text-sm text-gray-600 mb-4">{selectedUser.names}</p>
-        )}
-
-        {!selectedUserId ? (
-          <p className="text-gray-500">Select user</p>
-        ) : (
-          <table className="w-full border rounded-lg overflow-hidden">
-            <thead className="bg-gray-200">
-              <tr>
-                <th className="p-2 text-left">Number</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {phones.map((p) => (
-                <tr key={p.id} className="border-t">
-                  <td className="p-2">{p.number}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-white w-[420px] rounded-xl p-5">
-
-            <h2 className="text-xl font-bold mb-3">Edit User</h2>
-
-            <Label className="mb-1 block">Name</Label>
-            <Input
-              className="mb-2"
-              value={editNames}
-              onChange={(e) => setEditNames(e.target.value)}
-              placeholder="Name"
-            />
-
-            <Label className="mb-1 block">Email</Label>
-            <Input
-              className="mb-2"
-              value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value)}
-              placeholder="Email"
-            />
-
-            <hr className="my-3" />
-
-            <h3 className="font-semibold mb-2">Phones</h3>
-
-            {editPhones.map((p, i) => (
-              <div key={i} className="flex gap-2 mb-2">
-                <Input
-                  className="flex-1"
-                  value={p.number}
-                  onChange={(e) => updatePhoneValue(i, e.target.value)}
-                />
-
-                <Button
-                  onClick={() => removePhone(i)}
-                  className="bg-red-500 hover:bg-red-600"
-                >
-                  ✕
-                </Button>
-              </div>
-            ))}
-
-            <Button
-              onClick={addPhoneField}
-              variant="outline"
-              className="w-full mb-3"
-            >
-              + Add phone
-            </Button>
-
-            <div className="flex gap-2">
-              <Button
-                onClick={handleSave}
-                className="flex-1 bg-green-500 hover:bg-green-600"
-              >
-                Save
-              </Button>
-
-              <Button
-                onClick={() => setIsModalOpen(false)}
-                variant="outline"
-                className="flex-1"
-              >
-                Close
-              </Button>
-            </div>
-
-          </div>
-        </div>
+        <EditUserModal
+          editPhones={editPhones}
+          editUser={editUser}
+          formRef={editFormRef}
+          isEditDirty={isEditDirty}
+          onAddPhone={addPhoneField}
+          onChange={handleEditFormChange}
+          onClose={() => setIsModalOpen(false)}
+          onRemovePhone={removePhone}
+          onSubmit={handleSave}
+        />
       )}
 
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-white w-[420px] rounded-xl p-5">
-
-            <h2 className="text-xl font-bold mb-3">Create User</h2>
-
-            <Label className="mb-1 block">Username</Label>
-            <Input
-              className="mb-2"
-              value={createUsername}
-              onChange={(e) => setCreateUsername(e.target.value)}
-              placeholder="Username"
-            />
-
-            <Label className="mb-1 block">Full name</Label>
-            <Input
-              className="mb-2"
-              value={createNames}
-              onChange={(e) => setCreateNames(e.target.value)}
-              placeholder="Full name"
-            />
-
-            <Label className="mb-1 block">Email</Label>
-            <Input
-              className="mb-2"
-              value={createEmail}
-              onChange={(e) => setCreateEmail(e.target.value)}
-              placeholder="Email"
-            />
-
-            <div className="flex gap-2">
-              <Button
-                onClick={handleCreateUser}
-                className="flex-1 bg-green-500 hover:bg-green-600"
-              >
-                Create
-              </Button>
-
-              <Button
-                onClick={() => setIsCreateModalOpen(false)}
-                variant="outline"
-                className="flex-1"
-              >
-                Close
-              </Button>
-            </div>
-
-          </div>
-        </div>
+        <CreateUserModal
+          onClose={() => setIsCreateModalOpen(false)}
+          onSubmit={handleCreateUser}
+        />
       )}
     </div>
   );
