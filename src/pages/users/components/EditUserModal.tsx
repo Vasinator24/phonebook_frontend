@@ -1,8 +1,8 @@
-import type { FormEvent, RefObject } from "react";
+import type { RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { Phone, User } from "../../../types";
+import type { FormHandler, Phone, User } from "../../../types";
 
 type EditUserModalProps = {
   editPhones: Phone[];
@@ -10,10 +10,10 @@ type EditUserModalProps = {
   formRef: RefObject<HTMLFormElement | null>;
   isEditDirty: boolean;
   onAddPhone: () => void;
-  onChange: (e: FormEvent<HTMLFormElement>) => void;
+  onChange: FormHandler;
   onClose: () => void;
   onRemovePhone: (index: number) => void;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmit: FormHandler;
 };
 
 export function EditUserModal({

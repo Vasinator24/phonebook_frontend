@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
-import type { Phone } from "../../../types";
+import type { PhoneWithUser } from "../../../types";
 
-export type PhoneRow = Phone & { userName: string };
+export type PhoneRow = PhoneWithUser;
 
 type PhonesTableProps = {
   phones: PhoneRow[];
