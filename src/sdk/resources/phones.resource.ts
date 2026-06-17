@@ -1,11 +1,16 @@
 import type { AxiosInstance } from "axios";
-import type { CreatePhone, Phone, UpdatePhone } from "../../types";
+import type { CreatePhone, Phone, PhoneWithUser, UpdatePhone } from "../../types";
 
 export default class PhonesResource {
   constructor(private client: AxiosInstance) {}
 
   async getByUser(user_id: number): Promise<Phone[]> {
     const res = await this.client.get<Phone[]>(`/phones?user_id=${user_id}`);
+    return res.data;
+  }
+
+  async getAll(): Promise<PhoneWithUser[]> {
+    const res = await this.client.get<PhoneWithUser[]>("/phones");
     return res.data;
   }
 

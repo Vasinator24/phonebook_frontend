@@ -1,11 +1,11 @@
-import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { FormHandler } from "../../../types";
 
 type CreateUserModalProps = {
   onClose: () => void;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmit: FormHandler;
 };
 
 export function CreateUserModal({ onClose, onSubmit }: CreateUserModalProps) {
@@ -22,6 +22,14 @@ export function CreateUserModal({ onClose, onSubmit }: CreateUserModalProps) {
 
         <Label className="mb-1 block">Email</Label>
         <Input name="email" className="mb-2" placeholder="Email" />
+
+        <Label className="mb-1 block">Password</Label>
+        <Input
+          name="password"
+          type="password"
+          className="mb-3"
+          placeholder="Password"
+        />
 
         <div className="flex gap-2">
           <Button
