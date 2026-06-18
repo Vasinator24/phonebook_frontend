@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import sdk from "../../sdk";
-import { getRequestErrorMessage } from "../../lib/utils";
 import {
   createPhoneSchema,
   getValidationMessage,
@@ -10,6 +9,28 @@ import {
 import { CreatePhoneModal } from "./components/CreatePhoneModal";
 import { EditPhoneModal } from "./components/EditPhoneModal";
 import { PhonesTable, type PhoneRow } from "./components/PhonesTable";
+
+function phoneExists(
+  phones: PhoneRow[],
+  number: string,
+  currentPhoneId?: number
+) {
+  return phones.some(
+    (phone) => phone.number === number && phone.id !== currentPhoneId
+  );
+}
+
+function mapUsersToPhoneRows(users: User[]): PhoneRow[] {
+  return users.flatMap((user) =>
+    (user.phones || []).map((phone) => ({
+      id: phone.id,
+      number: phone.number,
+      user_id: phone.user_id ?? phone.userID ?? user.id,
+      userID: phone.userID,
+      userName: user.names,
+    }))
+  );
+}
 
 export default function PhonesPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -34,17 +55,16 @@ export default function PhonesPage() {
   );
 
   async function loadPhones() {
-    const phones = await sdk.phones.getAll();
-    setPhones(phones);
+    const users = await sdk.users.getAll();
+    setUsers(users);
+    setPhones(mapUsersToPhoneRows(users));
   }
 
   useEffect(() => {
-    Promise.all([sdk.users.getAll(), sdk.phones.getAll()]).then(
-      ([users, phones]) => {
-        setUsers(users);
-        setPhones(phones);
-      }
-    );
+    sdk.users.getAll().then((users) => {
+      setUsers(users);
+      setPhones(mapUsersToPhoneRows(users));
+    });
   }, []);
 
   function openEditModal(phone: PhoneRow) {
@@ -71,6 +91,11 @@ export default function PhonesPage() {
       return;
     }
 
+    if (phoneExists(phones, validation.data.number)) {
+      alert("This phone number already exists.");
+      return;
+    }
+
     try {
       await sdk.phones.create(validation.data);
 
@@ -78,7 +103,7 @@ export default function PhonesPage() {
       setIsCreateModalOpen(false);
     } catch (err) {
       console.error("CREATE PHONE FAILED:", err);
-      alert(getRequestErrorMessage(err, "Create phone failed!"));
+      alert("Create phone failed!");
     }
   }
 
@@ -94,6 +119,11 @@ export default function PhonesPage() {
 
     if (!validation.success) {
       alert(getValidationMessage(validation.error));
+      return;
+    }
+
+    if (phoneExists(phones, validation.data.number, editPhone.id)) {
+      alert("This phone number already exists.");
       return;
     }
 
@@ -113,7 +143,7 @@ export default function PhonesPage() {
       setIsModalOpen(false);
     } catch (err) {
       console.error("UPDATE PHONE FAILED:", err);
-      alert(getRequestErrorMessage(err, "Update phone failed!"));
+      alert("Update phone failed!");
     }
   }
 

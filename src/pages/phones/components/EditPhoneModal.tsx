@@ -1,15 +1,16 @@
+import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { FormHandler, User } from "../../../types";
+import type { User } from "../../../types";
 import type { PhoneRow } from "./PhonesTable";
 
 type EditPhoneModalProps = {
   editPhone: PhoneRow | null;
   isEditDirty: boolean;
-  onChange: FormHandler;
+  onChange: (e: FormEvent<HTMLFormElement>) => void;
   onClose: () => void;
-  onSubmit: FormHandler;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   users: User[];
 };
 

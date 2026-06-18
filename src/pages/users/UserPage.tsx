@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import sdk from "../../sdk";
-import { getRequestErrorMessage } from "../../lib/utils";
 import {
   createUserSchema,
   getValidationMessage,
@@ -119,7 +118,6 @@ export default function UsersPage() {
       username: formData.get("username"),
       names: formData.get("names"),
       email: formData.get("email"),
-      password: formData.get("password"),
     });
 
     if (!validation.success) {
@@ -188,6 +186,7 @@ export default function UsersPage() {
     );
     const validatedPhones: Phone[] = [];
     const usedNumbers = new Set<string>();
+    const allExistingPhones = users.flatMap((user) => user.phones || []);
 
     for (const phone of phonesToValidate) {
       const phoneValidation = phoneSchema.safeParse({
@@ -204,6 +203,16 @@ export default function UsersPage() {
 
       if (usedNumbers.has(number)) {
         alert("This phone number is already added in the form.");
+        return;
+      }
+
+      const duplicatePhone = allExistingPhones.find(
+        (existingPhone) =>
+          existingPhone.number === number && existingPhone.id !== phone.id
+      );
+
+      if (duplicatePhone) {
+        alert("This phone number already exists.");
         return;
       }
 
@@ -278,7 +287,7 @@ export default function UsersPage() {
       setIsModalOpen(false);
     } catch (err) {
       console.error("SAVE FAILED:", err);
-      alert(getRequestErrorMessage(err, "Save failed!"));
+      alert("Save failed!");
     }
   }
 

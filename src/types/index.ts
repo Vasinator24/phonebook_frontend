@@ -1,4 +1,3 @@
-import type { FormEventHandler } from "react";
 import { z } from "zod";
 
 export type User = {
@@ -16,12 +15,6 @@ export type Phone = {
   number: string;
 };
 
-export type PhoneWithUser = Phone & {
-  userName: string;
-};
-
-export type FormHandler = FormEventHandler<HTMLFormElement>;
-
 const formString = z.preprocess(
   (value) => (typeof value === "string" ? value : ""),
   z.string()
@@ -35,18 +28,6 @@ export const createUserSchema = z.object({
     z.string().trim().min(3, "Name must be at least 3 characters.")
   ),
   email: formString.pipe(z.string().trim().email("Email is invalid.")),
-  password: formString.pipe(
-    z.string().trim().min(4, "Password must be at least 4 characters.")
-  ),
-});
-
-export const loginSchema = z.object({
-  email: formString.pipe(
-    z.string().trim().min(3, "Email or username is required.")
-  ),
-  password: formString.pipe(
-    z.string().trim().min(4, "Password must be at least 4 characters.")
-  ),
 });
 
 export const updateUserSchema = z.object({
@@ -78,7 +59,6 @@ export const createPhoneSchema = phoneSchema.extend({
 export const updatePhoneSchema = createPhoneSchema;
 
 export type CreateUser = z.infer<typeof createUserSchema>;
-export type LoginData = z.infer<typeof loginSchema>;
 export type UpdateUser = z.infer<typeof updateUserSchema>;
 export type PhoneNumber = z.infer<typeof phoneSchema>;
 export type CreatePhone = z.infer<typeof createPhoneSchema>;
